@@ -1,0 +1,10 @@
+{{ define "main" }}
+<h1>文章分类</h1>
+<div class="post-list">
+    {{ range $name, $taxonomy := .Site.Taxonomies.categories }}
+        <div class="post-item">
+            <h2><a href="{{ $.Site.LanguagePrefix }}/categories/{{ $name | urlize }}">{{ $name }} ({{ len $taxonomy }})</a></h2>
+        </div>
+    {{ end }}
+</div>
+{{ end }}

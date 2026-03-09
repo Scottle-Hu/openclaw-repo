@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>火柴人标枪对战</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(to bottom, #87CEEB 0%, #E0F6FF 100%);
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #gameContainer {
+            flex: 1;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #gameCanvas {
+            flex: 1;
+            display: block;
+            background: linear-gradient(to bottom, #87CEEB 0%, #E0F6FF 60%, #90EE90 60%, #228B22 100%);
+        }
+
+        #ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            pointer-events: none;
+        }
+
+        .health-bar {
+            width: 120px;
+            height: 20px;
+            background: #333;
+            border: 2px solid #000;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .health-fill {
+            height: 100%;
+            background: linear-gradient(to bottom, #ff6b6b, #c0392b);
+            transition: width 0.3s;
+        }
+
+        .health-fill.ai {
+            background: linear-gradient(to bottom, #74b9ff, #0984e3);
+        }
+
+        .player-label {
+            font-size: 14px;
+            font-weight: bold;
+            color: #2d3436;
+            text-shadow: 1px 1px 2px rgba(255,255,255,0.8);
+            margin-bottom: 3px;
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            color: #2d3436;
+            font-size: 14px;
+            text-shadow: 1px 1px 2px rgba(255,255,255,0.8);
+            pointer-events: none;
+        }
+
+        #angleDisplay {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        #gameOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 100;
+        }
+
+        #gameOverlay.hidden {
+            display: none;
+        }
+
+        #overlayTitle {
+            font-size: 36px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        #overlayMessage {
+            font-size: 18px;
+            margin-bottom: 30px;
+            text-align: center;
+            max-width: 80%;
+        }
+
+        .btn {
+            padding: 15px 40px;
+            font-size: 20px;
+            background: linear-gradient(to bottom, #00b894, #00a085);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            transition: transform 0.1s;
+            pointer-events: auto;
+            margin: 10px;
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+        }
+
+        .btn.difficulty {
+            padding: 12px 30px;
+            font-size: 18px;
+        }
+
+        .btn.easy {
+            background: linear-gradient(to bottom, #00b894, #00a085);
+        }
+
+        .btn.medium {
+            background: linear-gradient(to bottom, #fdcb6e, #f39c12);
+        }
+
+        .btn.hard {
+            background: linear-gradient(to bottom, #e74c3c, #c0392b);
+        }
+
+        #difficultySelector {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        #difficultyText {
+            font-size: 16px;
+            margin-bottom: 15px;
+            color: #dfe6e9;
+        }
+
+        #cooldownDisplay {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 16px;
+            font-weight: bold;
+            color: #2d3436;
+            text-shadow: 1px 1px 2px rgba(255,255,255,0.9);
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="ui">
+            <div>
+                <div class="player-label">🧑 玩家</div>
+                <div class="health-bar">
+                    <div id="playerHealth" class="health-fill" style="width: 100%"></div>
+                </div>
+            </div>
+            <div>
+                <div class="player-label" style="text-align: right;">电脑 🤖</div>
+                <div class="health-bar">
+                    <div id="aiHealth" class="health-fill ai" style="width: 100%"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="controls">
+            <div id="angleDisplay">角度: 45°</div>
+            <div>点击/触摸屏幕调整角度，松开发射！</div>
+        </div>
+
+        <div id="cooldownDisplay"></div>
+
+        <div id="gameOverlay">
+            <div id="overlayTitle">🎮 火柴人标枪对战</div>
+            <div id="overlayMessage">选择难度开始游戏</div>
+            <div id="difficultyText">难度越高，电脑攻击越频繁、越精准</div>
+            <div id="difficultySelector">
+                <button class="btn difficulty easy" data-difficulty="easy">简单</button>
+                <button class="btn difficulty medium" data-difficulty="medium">中等</button>
+                <button class="btn difficulty hard" data-difficulty="hard">困难</button>
+            </div>
+            <button id="startBtn" class="btn" style="display:none;">开始游戏</button>
+            <button id="restartBtn" class="btn" style="display:none;">再来一局</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const gameOverlay = document.getElementById('gameOverlay');
+        const overlayTitle = document.getElementById('overlayTitle');
+        const overlayMessage = document.getElementById('overlayMessage');
+        const startBtn = document.getElementById('startBtn');
+        const restartBtn = document.getElementById('restartBtn');
+        const difficultySelector = document.getElementById('difficultySelector');
+        const difficultyText = document.getElementById('difficultyText');
+        const playerHealthBar = document.getElementById('playerHealth');
+        const aiHealthBar = document.getElementById('aiHealth');
+        const angleDisplay = document.getElementById('angleDisplay');
+        const cooldownDisplay = document.getElementById('cooldownDisplay');
+
+        let gameState = 'menu';
+        let selectedDifficulty = null;
+        let playerHealth = 100;
+        let aiHealth = 100;
+        let currentAngle = 45;
+        let isAiming = false;
+        let javelins = [];
+        let particles = [];
+        let groundY = 0;
+        let playerX = 0;
+        let aiX = 0;
+        let playerCooldown = 0;
+        let aiCooldown = 0;
+        let playerPillarHeight = 0;
+        let aiPillarHeight = 0;
+        let playerStandY = 0;
+        let aiStandY = 0;
+
+        let playerThrowAnim = { active: false, frame: 0, totalFrames: 20 };
+        let aiThrowAnim = { active: false, frame: 0, totalFrames: 20 };
+
+        const GRAVITY = 0.4;
+        const MAX_HEALTH = 100;
+        const JAVELIN_DAMAGE = 20;
+        const PLAYER_COOLDOWN_TIME = 60;
+
+        const DIFFICULTY = {
+            easy: {
+                aiCooldown: 180,
+                aiAccuracy: 0.3,
+                aiSpeed: 0.8
+            },
+            medium: {
+                aiCooldown: 120,
+                aiAccuracy: 0.5,
+                aiSpeed: 1.0
+            },
+            hard: {
+                aiCooldown: 60,
+                aiAccuracy: 0.7,
+                aiSpeed: 1.2
+            }
+        };
+
+        function resizeCanvas() {
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            groundY = canvas.height * 0.7;
+            playerX = canvas.width * 0.15;
+            aiX = canvas.width * 0.85;
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+        playerStandY = groundY;
+        aiStandY = groundY;
+
+        function drawStickman(x, standY, facingRight, throwAnim = null, holdingJavelin = false, javelinAngle = 45) {
+            ctx.save();
+            ctx.translate(x, standY);
+            if (!facingRight) ctx.scale(-1, 1);
+
+            let animProgress = 0;
+            let isThrowing = false;
+            
+            if (throwAnim && throwAnim.active) {
+                animProgress = throwAnim.frame / throwAnim.totalFrames;
+                isThrowing = true;
+            }
+
+            ctx.strokeStyle = '#2d3436';
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            let bodyLean = 0;
+            if (isThrowing) {
+                if (animProgress < 0.3) {
+                    bodyLean = -animProgress * 0.4;
+                } else if (animProgress < 0.7) {
+                    bodyLean = -0.4 + (animProgress - 0.3) * 1.5;
+                } else {
+                    bodyLean = 0.2 - (animProgress - 0.7) * 0.67;
+                }
+            }
+
+            ctx.save();
+            ctx.rotate(bodyLean);
+
+            ctx.beginPath();
+            ctx.arc(0, -70, 12, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.fillStyle = '#2d3436';
+            ctx.beginPath();
+            ctx.arc(-4, -72, 2, 0, Math.PI * 2);
+            ctx.arc(4, -72, 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(0, -58);
+            ctx.lineTo(0, -15);
+            ctx.stroke();
+
+            let leftArmAngle = 0;
+            let rightArmAngle = 0;
+            let leftArmExtend = 0;
+            let rightArmExtend = 0;
+
+            if (isThrowing) {
+                if (animProgress < 0.2) {
+                    rightArmAngle = -1.0 + animProgress * 2;
+                    leftArmAngle = 0.3 - animProgress * 1;
+                    rightArmExtend = 0.8 + animProgress * 0.2;
+                } else if (animProgress < 0.5) {
+                    rightArmAngle = -0.6 + (animProgress - 0.2) * 3;
+                    leftArmAngle = 0.1 - (animProgress - 0.2) * 0.3;
+                    rightArmExtend = 1.0;
+                } else if (animProgress < 0.8) {
+                    rightArmAngle = 0.3 + (animProgress - 0.5) * 1.5;
+                    leftArmAngle = 0.0 + (animProgress - 0.5) * 0.5;
+                    rightArmExtend = 1.2 - (animProgress - 0.5) * 0.3;
+                } else {
+                    rightArmAngle = 0.75 - (animProgress - 0.8) * 1.5;
+                    leftArmAngle = 0.25 - (animProgress - 0.8) * 0.5;
+                    rightArmExtend = 0.9 - (animProgress - 0.8) * 0.3;
+                }
+            } else if (holdingJavelin) {
+                rightArmAngle = (javelinAngle * Math.PI / 180) - 0.5;
+                leftArmAngle = 0.2;
+                rightArmExtend = 1.0;
+            } else {
+                const idleSwing = Math.sin(Date.now() / 200) * 0.1;
+                rightArmAngle = idleSwing;
+                leftArmAngle = -idleSwing;
+                rightArmExtend = 1.0;
+            }
+
+            ctx.save();
+            ctx.translate(0, -50);
+            ctx.rotate(rightArmAngle);
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(20 * rightArmExtend, 0);
+            ctx.stroke();
+            ctx.restore();
+
+            ctx.save();
+            ctx.translate(0, -50);
+            ctx.rotate(leftArmAngle);
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(-15, 0);
+            ctx.stroke();
+            ctx.restore();
+
+            let leftLegAngle = 0;
+            let rightLegAngle = 0;
+
+            if (isThrowing) {
+                if (animProgress < 0.3) {
+                    rightLegAngle = -animProgress * 0.5;
+                    leftLegAngle = animProgress * 0.3;
+                } else if (animProgress < 0.7) {
+                    rightLegAngle = -0.15 + (animProgress - 0.3) * 0.8;
+                    leftLegAngle = 0.09 - (animProgress - 0.3) * 0.2;
+                } else {
+                    rightLegAngle = 0.17 - (animProgress - 0.7) * 0.5;
+                    leftLegAngle = 0.01 + (animProgress - 0.7) * 0.1;
+                }
+            } else {
+                const idleLeg = Math.sin(Date.now() / 150) * 0.15;
+                rightLegAngle = idleLeg;
+                leftLegAngle = -idleLeg;
+            }
+
+            ctx.save();
+            ctx.translate(0, -15);
+            ctx.rotate(rightLegAngle);
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(15, 15);
+            ctx.stroke();
+            ctx.restore();
+
+            ctx.save();
+            ctx.translate(0, -15);
+            ctx.rotate(leftLegAngle);
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(-15, 15);
+            ctx.stroke();
+            ctx.restore();
+
+            if (holdingJavelin && !isThrowing) {
+                ctx.save();
+                ctx.translate(0, -50);
+                ctx.rotate(rightArmAngle);
+                ctx.translate(20 * rightArmExtend, 0);
+                
+                ctx.fillStyle = '#8B4513';
+                ctx.fillRect(-5, -2, 70, 4);
+                ctx.fillStyle = '#C0C0C0';
+                ctx.beginPath();
+                ctx.moveTo(65, 0);
+                ctx.lineTo(52, -6);
+                ctx.lineTo(52, 6);
+                ctx.closePath();
+                ctx.fill();
+                ctx.fillStyle = '#FF6B6B';
+                ctx.beginPath();
+                ctx.moveTo(-5, 0);
+                ctx.lineTo(-18, -10);
+                ctx.lineTo(-10, 0);
+                ctx.lineTo(-18, 10);
+                ctx.closePath();
+                ctx.fill();
+                
+                ctx.restore();
+            }
+
+            ctx.restore();
+            ctx.restore();
+        }
+
+        function drawJavelin(javelin) {
+            ctx.save();
+            ctx.translate(javelin.x, javelin.y);
+            ctx.rotate(Math.atan2(javelin.vy, javelin.vx));
+
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(-40, -3, 80, 6);
+
+            ctx.fillStyle = '#C0C0C0';
+            ctx.beginPath();
+            ctx.moveTo(40, 0);
+            ctx.lineTo(25, -8);
+            ctx.lineTo(25, 8);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.strokeStyle = '#A0A0A0';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(30, -6);
+            ctx.lineTo(40, 0);
+            ctx.lineTo(30, 6);
+            ctx.stroke();
+
+            ctx.fillStyle = '#FF6B6B';
+            ctx.beginPath();
+            ctx.moveTo(-40, 0);
+            ctx.lineTo(-55, -12);
+            ctx.lineTo(-45, 0);
+            ctx.lineTo(-55, 12);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.strokeStyle = '#c0392b';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-40, -4);
+            ctx.lineTo(-30, -4);
+            ctx.moveTo(-40, 4);
+            ctx.lineTo(-30, 4);
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        function drawAimLine() {
+            if (!isAiming || gameState !== 'playing' || playerThrowAnim.active) return;
+
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255, 107, 107, 0.8)';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([10, 5]);
+
+            const rad = (currentAngle * Math.PI) / 180;
+            const armAngle = rad - 0.5;
+            const handX = playerX + Math.cos(armAngle) * 20;
+            const handY = playerStandY - 50 - Math.sin(armAngle) * 20;
+            
+            const lineLength = 150;
+            const endX = handX + Math.cos(rad) * lineLength;
+            const endY = handY - Math.sin(rad) * lineLength;
+
+            ctx.beginPath();
+            ctx.moveTo(handX, handY);
+            ctx.lineTo(endX, endY);
+            ctx.stroke();
+
+            ctx.setLineDash([]);
+            ctx.fillStyle = 'rgba(255, 107, 107, 0.9)';
+            ctx.beginPath();
+            ctx.arc(endX, endY, 8, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function drawPillar(x, height, width = 80) {
+            const pillarTop = groundY - height;
+            
+            ctx.fillStyle = '#8B7355';
+            ctx.fillRect(x - width/2, pillarTop, width, height);
+            
+            ctx.strokeStyle = '#6B5344';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < height; i += 25) {
+                ctx.beginPath();
+                ctx.moveTo(x - width/2, pillarTop + i);
+                ctx.lineTo(x + width/2, pillarTop + i);
+                ctx.stroke();
+            }
+            
+            ctx.strokeStyle = '#5D4037';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(x - width/2, pillarTop, width, height);
+            
+            ctx.fillStyle = '#A0896C';
+            ctx.fillRect(x - width/2 - 5, pillarTop - 8, width + 10, 12);
+            ctx.strokeStyle = '#6B5344';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x - width/2 - 5, pillarTop - 8, width + 10, 12);
+        }
+
+        function drawGround() {
+            ctx.fillStyle = '#228B22';
+            ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
+
+            ctx.fillStyle = '#32CD32';
+            for (let i = 0; i < canvas.width; i += 20) {
+                ctx.beginPath();
+                ctx.moveTo(i, groundY);
+                ctx.lineTo(i + 5, groundY - 10);
+                ctx.lineTo(i + 10, groundY);
+                ctx.fill();
+            }
+        }
+
+        function drawParticles() {
+            particles.forEach((p, index) => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.2;
+                p.life -= 0.02;
+
+                if (p.life <= 0) {
+                    particles.splice(index, 1);
+                    return;
+                }
+
+                ctx.save();
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+        }
+
+        function createParticles(x, y, color, count = 10) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: (Math.random() - 0.5) * 8 - 3,
+                    size: Math.random() * 4 + 2,
+                    color: color,
+                    life: 1
+                });
+            }
+        }
+
+        function throwJavelin(fromPlayer, customAngle = null, customPower = null) {
+            let startX, startY, angle, power;
+            
+            if (fromPlayer) {
+                const rad = (currentAngle * Math.PI) / 180;
+                const armAngle = rad - 0.5;
+                startX = playerX + Math.cos(armAngle) * 20;
+                startY = playerStandY - 50 - Math.sin(armAngle) * 20;
+                angle = currentAngle;
+                power = 80;
+            } else {
+                const rad = (customAngle * Math.PI) / 180;
+                const armAngle = rad - 0.5;
+                startX = aiX + Math.cos(armAngle) * 20;
+                startY = aiStandY - 50 - Math.sin(armAngle) * 20;
+                angle = customAngle;
+                power = customPower;
+            }
+            
+            const rad = (angle * Math.PI) / 180;
+            const velocity = power * 0.4;
+
+            javelins.push({
+                x: startX,
+                y: startY,
+                vx: velocity * Math.cos(rad),
+                vy: -velocity * Math.sin(rad),
+                fromPlayer: fromPlayer
+            });
+
+            if (fromPlayer) {
+                playerThrowAnim.active = true;
+                playerThrowAnim.frame = 0;
+            } else {
+                aiThrowAnim.active = true;
+                aiThrowAnim.frame = 0;
+            }
+
+            createParticles(startX, startY, '#FFD700', 5);
+        }
+
+        function aiThrow() {
+            if (!selectedDifficulty || gameState !== 'playing') return;
+
+            const diff = DIFFICULTY[selectedDifficulty];
+            
+            const heightDiff = playerStandY - aiStandY;
+            const distance = aiX - playerX;
+            
+            let baseAngleAdjustment = 0;
+            if (heightDiff > 0) {
+                baseAngleAdjustment = (heightDiff / 150) * 10;
+            } else if (heightDiff < 0) {
+                baseAngleAdjustment = (heightDiff / 150) * 8;
+            }
+            
+            const baseAngle = 180 - 45 + baseAngleAdjustment;
+            const randomOffset = (Math.random() - 0.5) * (40 - diff.aiAccuracy * 30);
+            const angle = baseAngle + randomOffset;
+            
+            let powerAdjustment = 0;
+            if (heightDiff > 0) {
+                powerAdjustment = (heightDiff / 150) * 10;
+            } else if (heightDiff < 0) {
+                powerAdjustment = (heightDiff / 150) * 5;
+            }
+            
+            const basePower = 60 * diff.aiSpeed + powerAdjustment;
+            const powerOffset = (Math.random() - 0.5) * (30 - diff.aiAccuracy * 20);
+            const power = Math.max(40, Math.min(90, basePower + powerOffset));
+
+            throwJavelin(false, angle, power);
+        }
+
+        function checkCollision(javelin) {
+            const targetX = javelin.fromPlayer ? aiX : playerX;
+            const targetStandY = javelin.fromPlayer ? aiStandY : playerStandY;
+            const targetY = targetStandY - 35;
+            const distance = Math.sqrt(
+                Math.pow(javelin.x - targetX, 2) + 
+                Math.pow(javelin.y - targetY, 2)
+            );
+
+            return distance < 40;
+        }
+
+        function update() {
+            if (gameState !== 'playing') return;
+
+            if (playerCooldown > 0) {
+                playerCooldown--;
+            }
+
+            if (selectedDifficulty) {
+                if (aiCooldown > 0) {
+                    aiCooldown--;
+                } else if (!aiThrowAnim.active) {
+                    aiThrow();
+                    aiCooldown = DIFFICULTY[selectedDifficulty].aiCooldown;
+                }
+            }
+
+            if (playerThrowAnim.active) {
+                playerThrowAnim.frame++;
+                if (playerThrowAnim.frame >= playerThrowAnim.totalFrames) {
+                    playerThrowAnim.active = false;
+                }
+            }
+
+            if (aiThrowAnim.active) {
+                aiThrowAnim.frame++;
+                if (aiThrowAnim.frame >= aiThrowAnim.totalFrames) {
+                    aiThrowAnim.active = false;
+                }
+            }
+
+            javelins.forEach((javelin, index) => {
+                javelin.vy += GRAVITY;
+                javelin.x += javelin.vx;
+                javelin.y += javelin.vy;
+
+                if (checkCollision(javelin)) {
+                    createParticles(javelin.x, javelin.y, '#e74c3c', 15);
+                    
+                    if (javelin.fromPlayer) {
+                        aiHealth = Math.max(0, aiHealth - JAVELIN_DAMAGE);
+                        aiHealthBar.style.width = (aiHealth / MAX_HEALTH * 100) + '%';
+                    } else {
+                        playerHealth = Math.max(0, playerHealth - JAVELIN_DAMAGE);
+                        playerHealthBar.style.width = (playerHealth / MAX_HEALTH * 100) + '%';
+                    }
+
+                    javelins.splice(index, 1);
+                    checkGameEnd();
+                    return;
+                }
+
+                if (javelin.y > groundY || javelin.x < -50 || javelin.x > canvas.width + 50) {
+                    createParticles(javelin.x, Math.min(javelin.y, groundY), '#8B4513', 8);
+                    javelins.splice(index, 1);
+                }
+            });
+
+            updateCooldownDisplay();
+        }
+
+        function updateCooldownDisplay() {
+            if (playerCooldown > 0) {
+                const percent = Math.ceil((playerCooldown / PLAYER_COOLDOWN_TIME) * 100);
+                cooldownDisplay.textContent = `冷却中: ${percent}%`;
+            } else {
+                cooldownDisplay.textContent = '可以发射！';
+            }
+        }
+
+        function checkGameEnd() {
+            if (playerHealth <= 0) {
+                gameState = 'gameover';
+                overlayTitle.textContent = '💀 游戏结束';
+                overlayMessage.textContent = '电脑获胜了！再试一次？';
+                restartBtn.style.display = 'block';
+                difficultySelector.style.display = 'flex';
+                difficultyText.style.display = 'block';
+                gameOverlay.classList.remove('hidden');
+            } else if (aiHealth <= 0) {
+                gameState = 'gameover';
+                overlayTitle.textContent = '🎉 胜利！';
+                overlayMessage.textContent = '你打败了电脑！太厉害了！';
+                restartBtn.style.display = 'block';
+                difficultySelector.style.display = 'flex';
+                difficultyText.style.display = 'block';
+                gameOverlay.classList.remove('hidden');
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            drawGround();
+            
+            if (gameState === 'playing' || gameState === 'gameover') {
+                drawPillar(playerX, playerPillarHeight);
+                drawPillar(aiX, aiPillarHeight);
+            }
+            
+            const playerHit = javelins.some(j => !j.fromPlayer);
+            const aiHit = javelins.some(j => j.fromPlayer);
+            
+            drawStickman(playerX, playerStandY, true, playerThrowAnim, isAiming && !playerThrowAnim.active, currentAngle);
+            drawStickman(aiX, aiStandY, false, aiThrowAnim);
+            
+            drawAimLine();
+            javelins.forEach(javelin => drawJavelin(javelin));
+            drawParticles();
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function getPosition(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        function handleAim(pos) {
+            const dx = pos.x - playerX;
+            const dy = playerStandY - 50 - pos.y;
+            let angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+            angle = Math.max(5, Math.min(88, angle));
+            currentAngle = angle;
+            angleDisplay.textContent = `角度: ${Math.round(currentAngle)}°`;
+        }
+
+        function startAim(e) {
+            if (gameState !== 'playing' || playerCooldown > 0 || playerThrowAnim.active) return;
+            e.preventDefault();
+            isAiming = true;
+            handleAim(getPosition(e));
+        }
+
+        function moveAim(e) {
+            if (!isAiming) return;
+            e.preventDefault();
+            handleAim(getPosition(e));
+        }
+
+        function endAim(e) {
+            if (!isAiming) return;
+            e.preventDefault();
+            isAiming = false;
+            
+            if (gameState === 'playing' && playerCooldown === 0 && !playerThrowAnim.active) {
+                throwJavelin(true);
+                playerCooldown = PLAYER_COOLDOWN_TIME;
+            }
+        }
+
+        canvas.addEventListener('mousedown', startAim);
+        canvas.addEventListener('mousemove', moveAim);
+        canvas.addEventListener('mouseup', endAim);
+        canvas.addEventListener('mouseleave', endAim);
+
+        canvas.addEventListener('touchstart', startAim, { passive: false });
+        canvas.addEventListener('touchmove', moveAim, { passive: false });
+        canvas.addEventListener('touchend', endAim, { passive: false });
+
+        document.querySelectorAll('.btn.difficulty').forEach(btn => {
+            btn.addEventListener('click', () => {
+                selectedDifficulty = btn.dataset.difficulty;
+                document.querySelectorAll('.btn.difficulty').forEach(b => {
+                    b.style.opacity = '0.5';
+                    b.style.transform = 'scale(0.95)';
+                });
+                btn.style.opacity = '1';
+                btn.style.transform = 'scale(1.1)';
+                startBtn.style.display = 'block';
+            });
+        });
+
+        function startGame() {
+            playerHealth = MAX_HEALTH;
+            aiHealth = MAX_HEALTH;
+            playerHealthBar.style.width = '100%';
+            aiHealthBar.style.width = '100%';
+            javelins = [];
+            particles = [];
+            currentAngle = 45;
+            playerCooldown = 0;
+            aiCooldown = selectedDifficulty ? DIFFICULTY[selectedDifficulty].aiCooldown : 120;
+            playerThrowAnim = { active: false, frame: 0, totalFrames: 20 };
+            aiThrowAnim = { active: false, frame: 0, totalFrames: 20 };
+            
+            const minHeight = 0;
+            const maxHeight = 120;
+            playerPillarHeight = minHeight + Math.random() * (maxHeight - minHeight);
+            aiPillarHeight = minHeight + Math.random() * (maxHeight - minHeight);
+            playerStandY = groundY - playerPillarHeight;
+            aiStandY = groundY - aiPillarHeight;
+            
+            angleDisplay.textContent = '角度: 45°';
+            gameState = 'playing';
+            gameOverlay.classList.add('hidden');
+        }
+
+        startBtn.addEventListener('click', startGame);
+        restartBtn.addEventListener('click', () => {
+            startBtn.style.display = 'none';
+            restartBtn.style.display = 'none';
+            overlayTitle.textContent = '🎮 火柴人标枪对战';
+            overlayMessage.textContent = '选择难度开始游戏';
+            document.querySelectorAll('.btn.difficulty').forEach(b => {
+                b.style.opacity = '1';
+                b.style.transform = 'scale(1)';
+            });
+            selectedDifficulty = null;
+        });
+
+        gameLoop();
+    </script>
+</body>
+</html>

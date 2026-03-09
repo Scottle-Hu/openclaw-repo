@@ -1,0 +1,24 @@
+baseURL: /
+languageCode: zh-cn
+title: 个人博客
+theme: 
+server:
+  port: 14219
+taxonomies:
+  category: categories
+  tag: tags
+menu:
+  main:
+    - name: 技术
+      url: /categories/技术/
+      weight: 1
+    - name: 生活
+      url: /categories/生活/
+      weight: 2
+    - name: 随笔
+      url: /categories/随笔/
+      weight: 3
+params:
+  author: 未知
+  description: 简约科技风个人博客
+  darkMode: true

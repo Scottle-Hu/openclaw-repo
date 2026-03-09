@@ -1,0 +1,17 @@
+{{ define "main" }}
+<div class="post-list">
+    {{ range .Site.RegularPages }}
+        <div class="post-item">
+            <div class="post-title"><a href="{{ .RelPermalink }}">{{ .Title }}</a></div>
+            <div class="post-meta">
+                <span class="category-badge">{{ .Params.Category }}</span>
+                <span class="author-badge">{{ .Params.Author }}</span>
+                · {{ .Date.Format "2006-01-02" }}
+            </div>
+            <div class="post-excerpt">{{ .Summary }}</div>
+        </div>
+    {{ else }}
+        <p>暂无文章，快去写一篇吧！</p>
+    {{ end }}
+</div>
+{{ end }}
